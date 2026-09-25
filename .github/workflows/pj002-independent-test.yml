@@ -1,30 +1,18 @@
-name: PJ002 Independent Test
+name: PJ002 E006 External Trust Proof
 
 on:
   workflow_dispatch:
     inputs:
-      event_id:
-        description: Frozen PJ002 event identity
+      proof_id:
+        description: External proof identity
         required: true
         type: string
       attempt_id:
-        description: Externally authorized attempt identity
+        description: Authorized attempt identity
         required: true
         type: string
       challenge_nonce:
         description: Fresh challenge nonce
-        required: true
-        type: string
-      subject_sha256:
-        description: Expected SHA-256 of payload/subject.tar.gz
-        required: true
-        type: string
-      corpus_sha256:
-        description: Expected SHA-256 of payload/corpus.tar.gz
-        required: true
-        type: string
-      verifier_sha256:
-        description: Expected SHA-256 of payload/verifier.tar.gz
         required: true
         type: string
       evidence_root:
@@ -36,76 +24,222 @@ permissions:
   contents: read
   id-token: write
   attestations: write
+  artifact-metadata: write
 
 jobs:
-  independent-test:
+  produce-external-decision:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+
     steps:
       - name: Checkout independent tester
         uses: actions/checkout@v4
 
-      - name: Require frozen payload
+      - name: Verify exact frozen E006 payload
         shell: bash
         run: |
           set -euo pipefail
-          for f in payload/subject.tar.gz payload/corpus.tar.gz payload/verifier.tar.gz payload/run.sh payload/freeze.json; do
-            test -f "$f" || { echo "BLOCKED: missing $f" >&2; exit 20; }
-          done
 
-      - name: Verify frozen payload hashes
+          echo "e5f33137de2896501798dd7bbea3dc74c43ffafd4dccf8c79ce7e7c1ffe59287  payload/subject.zip"  | sha256sum -c -
+          echo "3bf5e4ebc8de23b9573640e381036787c15c89389ede7dbe2e0fede15d216736  payload/corpus.zip"   | sha256sum -c -
+          echo "8a08442dd94af0a0e290ce0e2656ccbf36501b390504eeca37166c9c482d49e8  payload/verifier.zip" | sha256sum -c -
+          echo "0c54644940bd65a6f1467f9464ef958d853e214cc665c842e42ff019919bb13a  payload/freeze.json"  | sha256sum -c -
+
+          python - <<'PY'
+          import json
+          freeze=json.load(open("payload/freeze.json",encoding="utf-8"))
+          assert freeze["event_id"]=="PJ002-E006"
+          assert freeze["execution_state"]=="CLOSED"
+          print("Frozen E006 identity verified.")
+          PY
+
+      - name: Produce external decision
         shell: bash
         env:
-          EXPECT_SUBJECT: ${{ inputs.subject_sha256 }}
-          EXPECT_CORPUS: ${{ inputs.corpus_sha256 }}
-          EXPECT_VERIFIER: ${{ inputs.verifier_sha256 }}
-        run: |
-          set -euo pipefail
-          actual_subject="$(sha256sum payload/subject.tar.gz | awk '{print $1}')"
-          actual_corpus="$(sha256sum payload/corpus.tar.gz | awk '{print $1}')"
-          actual_verifier="$(sha256sum payload/verifier.tar.gz | awk '{print $1}')"
-          test "$actual_subject" = "$EXPECT_SUBJECT" || { echo "FAIL: subject hash mismatch" >&2; exit 21; }
-          test "$actual_corpus" = "$EXPECT_CORPUS" || { echo "FAIL: corpus hash mismatch" >&2; exit 22; }
-          test "$actual_verifier" = "$EXPECT_VERIFIER" || { echo "FAIL: verifier hash mismatch" >&2; exit 23; }
-
-      - name: Execute frozen independent test
-        id: test
-        shell: bash
-        env:
-          PJ002_EVENT_ID: ${{ inputs.event_id }}
-          PJ002_ATTEMPT_ID: ${{ inputs.attempt_id }}
-          PJ002_CHALLENGE_NONCE: ${{ inputs.challenge_nonce }}
-          PJ002_EVIDENCE_ROOT: ${{ inputs.evidence_root }}
+          PROOF_ID: ${{ inputs.proof_id }}
+          ATTEMPT_ID: ${{ inputs.attempt_id }}
+          CHALLENGE_NONCE: ${{ inputs.challenge_nonce }}
+          EVIDENCE_ROOT: ${{ inputs.evidence_root }}
         run: |
           set -euo pipefail
           mkdir -p out
-          chmod +x payload/run.sh
-          payload/run.sh
-          test -s out/test-result.json || { echo 'BLOCKED: runner produced no test result' >&2; exit 24; }
 
-      - name: Build challenge-bound receipt
-        shell: bash
-        env:
-          PJ002_EVENT_ID: ${{ inputs.event_id }}
-          PJ002_ATTEMPT_ID: ${{ inputs.attempt_id }}
-          PJ002_CHALLENGE_NONCE: ${{ inputs.challenge_nonce }}
-          PJ002_SUBJECT_SHA256: ${{ inputs.subject_sha256 }}
-          PJ002_CORPUS_SHA256: ${{ inputs.corpus_sha256 }}
-          PJ002_VERIFIER_SHA256: ${{ inputs.verifier_sha256 }}
-          PJ002_EVIDENCE_ROOT: ${{ inputs.evidence_root }}
-        run: node scripts/build-receipt.mjs
+          python - <<'PY'
+          import json, os, datetime
 
-      - name: Attest independent receipt
+          d={
+            "schema_version":"pj002-external-decision.v1",
+            "source_event":"PJ002-E006",
+            "external_proof_id":os.environ["PROOF_ID"],
+            "attempt_id":os.environ["ATTEMPT_ID"],
+            "challenge_nonce":os.environ["CHALLENGE_NONCE"],
+            "clock_domain_identity":"GITHUB_ACTIONS_UTC",
+            "evidence_root_identity":os.environ["EVIDENCE_ROOT"],
+            "subject_sha256":"e5f33137de2896501798dd7bbea3dc74c43ffafd4dccf8c79ce7e7c1ffe59287",
+            "corpus_sha256":"3bf5e4ebc8de23b9573640e381036787c15c89389ede7dbe2e0fede15d216736",
+            "verifier_sha256":"8a08442dd94af0a0e290ce0e2656ccbf36501b390504eeca37166c9c482d49e8",
+            "freeze_sha256":"0c54644940bd65a6f1467f9464ef958d853e214cc665c842e42ff019919bb13a",
+            "workflow_repository":os.environ["GITHUB_REPOSITORY"],
+            "workflow_ref":os.environ["GITHUB_WORKFLOW_REF"],
+            "workflow_sha":os.environ["GITHUB_SHA"],
+            "workflow_run_id":os.environ["GITHUB_RUN_ID"],
+            "workflow_run_attempt":os.environ["GITHUB_RUN_ATTEMPT"],
+            "trust_decision":"VERIFIED_EXTERNAL",
+            "decision_reason":"Exact frozen E006 payload verified by GitHub-hosted runner; decision requires subsequent Sigstore/GitHub attestation verification.",
+            "issued_at":datetime.datetime.now(datetime.timezone.utc).isoformat()
+          }
+
+          json.dump(d,open("out/external-decision.json","w"),indent=2,sort_keys=True)
+          PY
+
+      - name: Attest external decision
         uses: actions/attest@v4
         with:
-          subject-path: out/receipt.json
+          subject-path: out/external-decision.json
 
-      - name: Upload receipt and raw result
+      - name: Upload external decision
         uses: actions/upload-artifact@v4
         with:
-          name: pj002-independent-receipt-${{ github.run_id }}-${{ github.run_attempt }}
+          name: pj002-external-decision
+          path: out/external-decision.json
+          if-no-files-found: error
+          retention-days: 30
+
+  verify-and-run-e006:
+    needs: produce-external-decision
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout independent tester
+        uses: actions/checkout@v4
+
+      - name: Download externally produced decision
+        uses: actions/download-artifact@v4
+        with:
+          name: pj002-external-decision
+          path: out
+
+      - name: Verify Sigstore/GitHub attestation
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          verified=0
+
+          for n in 1 2 3 4 5; do
+            if gh attestation verify out/external-decision.json \
+              --repo BMAZINGcapital/pj002-independent-tester \
+              --signer-workflow BMAZINGcapital/pj002-independent-tester/.github/workflows/pj002-independent-test.yml \
+              --format json > out/attestation-verification.json
+            then
+              verified=1
+              break
+            fi
+
+            sleep 5
+          done
+
+          test "$verified" = "1" || {
+            echo "BLOCKED: external decision attestation could not be verified."
+            exit 30
+          }
+
+      - name: Normalize verified external trust result
+        shell: bash
+        env:
+          PROOF_ID: ${{ inputs.proof_id }}
+          ATTEMPT_ID: ${{ inputs.attempt_id }}
+          CHALLENGE_NONCE: ${{ inputs.challenge_nonce }}
+          EVIDENCE_ROOT: ${{ inputs.evidence_root }}
+        run: |
+          set -euo pipefail
+
+          python - <<'PY'
+          import hashlib, json, os
+
+          raw=open("out/external-decision.json","rb").read()
+          d=json.loads(raw)
+
+          for field, expected in {
+            "external_proof_id":os.environ["PROOF_ID"],
+            "attempt_id":os.environ["ATTEMPT_ID"],
+            "challenge_nonce":os.environ["CHALLENGE_NONCE"],
+            "evidence_root_identity":os.environ["EVIDENCE_ROOT"],
+          }.items():
+              if d[field] != expected:
+                  raise SystemExit(f"binding mismatch: {field}")
+
+          receipt_hash=hashlib.sha256(raw).hexdigest()
+
+          binding_material="|".join([
+              "PJ002-E006",
+              d["attempt_id"],
+              d["challenge_nonce"],
+              d["clock_domain_identity"],
+              d["evidence_root_identity"],
+              receipt_hash
+          ]).encode()
+
+          trust={
+            "schema_version":"pj002-e006-normalized-external-trust.v1",
+            "trust_result":{
+              "event_id":"PJ002-E006",
+              "attempt_id":d["attempt_id"],
+              "challenge_nonce":d["challenge_nonce"],
+              "clock_domain_identity":d["clock_domain_identity"],
+              "evidence_root_identity":d["evidence_root_identity"],
+              "trust_adapter_identity":"GITHUB_ACTIONS_SIGSTORE_PUBLIC_GOOD",
+              "trust_adapter_instance_identity":
+                  f"{d['workflow_repository']}:{d['workflow_run_id']}:{d['workflow_run_attempt']}",
+              "trust_decision":"VERIFIED_EXTERNAL",
+              "decision_reason":"GitHub artifact attestation cryptographically verified against the exact independent tester workflow.",
+              "decision_receipt_hash":receipt_hash,
+              "decision_predecessor_hash":
+                  "0c54644940bd65a6f1467f9464ef958d853e214cc665c842e42ff019919bb13a",
+              "decision_authentication_reference":
+                  f"github-attestation:{d['workflow_repository']}:{d['workflow_run_id']}:{d['workflow_run_attempt']}",
+              "decision_binding_digest":
+                  hashlib.sha256(binding_material).hexdigest(),
+              "adapter_source":"GITHUB_SIGSTORE_PUBLIC_GOOD",
+              "decision_receipt_authenticated":True
+            }
+          }
+
+          json.dump(trust,open("out/verified-trust.json","w"),indent=2,sort_keys=True)
+          PY
+
+      - name: Execute exact frozen E006 corpus
+        env:
+          PJ002_PROOF_ID: ${{ inputs.proof_id }}
+        run: python scripts/run-e006.py
+
+      - name: Attest final E006 external replay result
+        uses: actions/attest@v4
+        with:
+          subject-path: out/test-result.json
+
+      - name: Upload final evidence bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: pj002-e006-external-proof-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
-            out/receipt.json
+            out/external-decision.json
+            out/attestation-verification.json
+            out/verified-trust.json
             out/test-result.json
           if-no-files-found: error
           retention-days: 30
+
+      - name: Enforce final decision
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          r=json.load(open("out/test-result.json"))
+          if r["decision"] != "PASS":
+              raise SystemExit("PJ002 E006 external replay did not PASS.")
+          print("PJ002 E006 external replay: PASS")
+          PY

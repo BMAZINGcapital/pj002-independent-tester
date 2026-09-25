@@ -1,30 +1,31 @@
 # PJ002 Independent Tester
 
-Public, bounded independent-testing harness for PRIMAL JUNGLE 002.
+External evidence and independent-runner surface for PRIMAL JUNGLE 002.
 
-## Authority boundary
+## Frozen source
 
-This repository does **not** admit, deploy, govern, or authorize PJ002. It exists only to run a frozen test payload on a GitHub-hosted runner and produce an externally attributable, challenge-bound receipt.
+This tester is bound to the exact PJ002-E006 frozen source lineage:
 
-Green CI is not a PJ002 PASS. A receipt is usable only after the PJ002 trust adapter verifies the GitHub artifact attestation and every frozen binding.
+`44143d61b632c0d3810d44a40c78f5911b1a8921`
 
-## Fail-closed rules
+Frozen payload:
 
-- No payload -> workflow fails.
-- Subject/corpus/verifier hash mismatch -> workflow fails.
-- Missing event, attempt, or challenge -> workflow fails.
-- Test runner nonzero exit -> workflow records non-PASS and the job fails after preserving evidence.
-- No attestation -> no VERIFIED_EXTERNAL claim.
-- This repository never grants governance, admission, merge, release, deployment, staging, production, or protected-action authority.
+- `payload/subject.zip`
+- `payload/corpus.zip`
+- `payload/verifier.zip`
+- `payload/freeze.json`
+- `payload/bindings.json`
 
-## Expected frozen payload
+## Two-phase trust path
 
-Place these files under `payload/` in a separately reviewed initialization step:
+1. A GitHub-hosted runner verifies the exact frozen payload.
+2. It creates an external decision bound to a fresh proof, attempt, challenge and evidence root.
+3. GitHub/Sigstore attests that decision.
+4. A second job verifies the attestation against this exact repository/workflow.
+5. Only after successful attestation verification is `decision_receipt_authenticated=true` created.
+6. The exact frozen E006 verifier/corpus is replayed.
+7. The final result is separately attested.
 
-- `subject.tar.gz`
-- `corpus.tar.gz`
-- `verifier.tar.gz`
-- `run.sh`
-- `freeze.json`
+A green GitHub workflow does not grant governance, admission, merge, release, deployment, staging or production authority.
 
-The workflow is intentionally unusable for a positive result until that exact payload is added and hash-bound.
+Historical PJ002 E001-E006 evidence remains immutable.
