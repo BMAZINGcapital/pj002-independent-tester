@@ -43,11 +43,11 @@ jobs:
           echo "e5f33137de2896501798dd7bbea3dc74c43ffafd4dccf8c79ce7e7c1ffe59287  payload/subject.zip"  | sha256sum -c -
           echo "3bf5e4ebc8de23b9573640e381036787c15c89389ede7dbe2e0fede15d216736  payload/corpus.zip"   | sha256sum -c -
           echo "8a08442dd94af0a0e290ce0e2656ccbf36501b390504eeca37166c9c482d49e8  payload/verifier.zip" | sha256sum -c -
-          echo "0c54644940bd65a6f1467f9464ef958d853e214cc665c842e42ff019919bb13a  payload/freeze.json"  | sha256sum -c -
+          echo "80543acbe354d3c1486795c2039e43157aee15f639ecf52f780ce5a0bd8fe6a5  payload/freeze.bin"  | sha256sum -c -
 
           python - <<'PY'
           import json
-          freeze=json.load(open("payload/freeze.json",encoding="utf-8"))
+          freeze=json.load(open("payload/freeze.bin",encoding="utf-8"))
           assert freeze["event_id"]=="PJ002-E006"
           assert freeze["execution_state"]=="CLOSED"
           print("Frozen E006 identity verified.")

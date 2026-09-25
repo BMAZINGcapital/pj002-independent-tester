@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "event_id": "PJ002-E006",
+  "status": "FROZEN_EXTERNAL_TRUST_ADAPTER_GATE_NOT_EXECUTED",
+  "repository": "BMAZINGcapital/bmazing-bmos",
+  "branch": "jungle/primal-jungle-002",
+  "predecessor_event": "PJ002-E005",
+  "predecessor_result_commit": "efe2f5cd54714cc074232dfc01005adfb26d0aa1",
+  "cabmm_maturation_commit": "24e853bc3704de02b862c63fb959c6989c0c6c6d",
+  "pre_freeze_head": "e190d83b5baa8fda4968638bb9e982f4b4772280",
+  "artifacts": [
+    {
+      "path": "primal_jungle_002/e006/config.json",
+      "git_blob_sha": "54e7444fe32d0f953082f0c33fc464e31396b6d1"
+    },
+    {
+      "path": "primal_jungle_002/e006/trust_adapter_contract.json",
+      "git_blob_sha": "c4825c2170b816984da7530db56dc47b8e562cb9"
+    },
+    {
+      "path": "primal_jungle_002/e006/corpus.json",
+      "git_blob_sha": "1396fb9d84608dd2f24e1a9903d94218f928bb9c"
+    },
+    {
+      "path": "primal_jungle_002/e006/oracle.json",
+      "git_blob_sha": "f8ba971eaa6eff7fd752902c615ef94175c03a18"
+    },
+    {
+      "path": "primal_jungle_002/e006/verifier.py",
+      "git_blob_sha": "d54f7777b2adf911609d3f25af29f051db542b4d"
+    },
+    {
+      "path": "primal_jungle_002/e006/README.md",
+      "git_blob_sha": "a1614c3cdf1cd5e26ee2da4064ab270e222c1939"
+    }
+  ],
+  "corpus_case_count": 13,
+  "execution_authorized": false,
+  "execution_state": "CLOSED",
+  "jungle_verdict": null,
+  "authority": {
+    "verdict": false,
+    "cabmm": false,
+    "governance": false,
+    "admission": false,
+    "merge": false,
+    "release": false,
+    "deployment": false,
+    "production": false
+  },
+  "mutation_rule": "Any material E006 change requires a new event identity and fresh freeze.",
+  "execution_gate": "Separate explicit Founder authorization required for PJ002-E006 execution."
+}
