@@ -1,0 +1,111 @@
+name: PJ002 Independent Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      event_id:
+        description: Frozen PJ002 event identity
+        required: true
+        type: string
+      attempt_id:
+        description: Externally authorized attempt identity
+        required: true
+        type: string
+      challenge_nonce:
+        description: Fresh challenge nonce
+        required: true
+        type: string
+      subject_sha256:
+        description: Expected SHA-256 of payload/subject.tar.gz
+        required: true
+        type: string
+      corpus_sha256:
+        description: Expected SHA-256 of payload/corpus.tar.gz
+        required: true
+        type: string
+      verifier_sha256:
+        description: Expected SHA-256 of payload/verifier.tar.gz
+        required: true
+        type: string
+      evidence_root:
+        description: Frozen evidence-root identity
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+
+jobs:
+  independent-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout independent tester
+        uses: actions/checkout@v4
+
+      - name: Require frozen payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          for f in payload/subject.tar.gz payload/corpus.tar.gz payload/verifier.tar.gz payload/run.sh payload/freeze.json; do
+            test -f "$f" || { echo "BLOCKED: missing $f" >&2; exit 20; }
+          done
+
+      - name: Verify frozen payload hashes
+        shell: bash
+        env:
+          EXPECT_SUBJECT: ${{ inputs.subject_sha256 }}
+          EXPECT_CORPUS: ${{ inputs.corpus_sha256 }}
+          EXPECT_VERIFIER: ${{ inputs.verifier_sha256 }}
+        run: |
+          set -euo pipefail
+          actual_subject="$(sha256sum payload/subject.tar.gz | awk '{print $1}')"
+          actual_corpus="$(sha256sum payload/corpus.tar.gz | awk '{print $1}')"
+          actual_verifier="$(sha256sum payload/verifier.tar.gz | awk '{print $1}')"
+          test "$actual_subject" = "$EXPECT_SUBJECT" || { echo "FAIL: subject hash mismatch" >&2; exit 21; }
+          test "$actual_corpus" = "$EXPECT_CORPUS" || { echo "FAIL: corpus hash mismatch" >&2; exit 22; }
+          test "$actual_verifier" = "$EXPECT_VERIFIER" || { echo "FAIL: verifier hash mismatch" >&2; exit 23; }
+
+      - name: Execute frozen independent test
+        id: test
+        shell: bash
+        env:
+          PJ002_EVENT_ID: ${{ inputs.event_id }}
+          PJ002_ATTEMPT_ID: ${{ inputs.attempt_id }}
+          PJ002_CHALLENGE_NONCE: ${{ inputs.challenge_nonce }}
+          PJ002_EVIDENCE_ROOT: ${{ inputs.evidence_root }}
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          chmod +x payload/run.sh
+          payload/run.sh
+          test -s out/test-result.json || { echo 'BLOCKED: runner produced no test result' >&2; exit 24; }
+
+      - name: Build challenge-bound receipt
+        shell: bash
+        env:
+          PJ002_EVENT_ID: ${{ inputs.event_id }}
+          PJ002_ATTEMPT_ID: ${{ inputs.attempt_id }}
+          PJ002_CHALLENGE_NONCE: ${{ inputs.challenge_nonce }}
+          PJ002_SUBJECT_SHA256: ${{ inputs.subject_sha256 }}
+          PJ002_CORPUS_SHA256: ${{ inputs.corpus_sha256 }}
+          PJ002_VERIFIER_SHA256: ${{ inputs.verifier_sha256 }}
+          PJ002_EVIDENCE_ROOT: ${{ inputs.evidence_root }}
+        run: node scripts/build-receipt.mjs
+
+      - name: Attest independent receipt
+        uses: actions/attest@v4
+        with:
+          subject-path: out/receipt.json
+
+      - name: Upload receipt and raw result
+        uses: actions/upload-artifact@v4
+        with:
+          name: pj002-independent-receipt-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            out/receipt.json
+            out/test-result.json
+          if-no-files-found: error
+          retention-days: 30
