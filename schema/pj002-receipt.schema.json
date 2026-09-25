@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/BMAZINGcapital/pj002-independent-tester/schema/pj002-receipt.schema.json",
+  "title": "PJ002 Independent Test Receipt",
+  "type": "object",
+  "required": ["schema_version","event_id","attempt_id","challenge_nonce","subject_sha256","corpus_sha256","verifier_sha256","evidence_root","result_sha256","workflow_repository","workflow_ref","workflow_sha","workflow_run_id","workflow_run_attempt","runner_environment","issued_at","decision"],
+  "properties": {
+    "schema_version": {"const":"pj002-independent-receipt.v1"},
+    "event_id": {"type":"string","minLength":1},
+    "attempt_id": {"type":"string","minLength":1},
+    "challenge_nonce": {"type":"string","minLength":16},
+    "subject_sha256": {"type":"string","pattern":"^[a-f0-9]{64}$"},
+    "corpus_sha256": {"type":"string","pattern":"^[a-f0-9]{64}$"},
+    "verifier_sha256": {"type":"string","pattern":"^[a-f0-9]{64}$"},
+    "evidence_root": {"type":"string","minLength":1},
+    "result_sha256": {"type":"string","pattern":"^[a-f0-9]{64}$"},
+    "workflow_repository": {"const":"BMAZINGcapital/pj002-independent-tester"},
+    "workflow_ref": {"type":"string","minLength":1},
+    "workflow_sha": {"type":"string","pattern":"^[a-f0-9]{40}$"},
+    "workflow_run_id": {"type":"string","minLength":1},
+    "workflow_run_attempt": {"type":"string","minLength":1},
+    "runner_environment": {"const":"github-hosted"},
+    "issued_at": {"type":"string","format":"date-time"},
+    "decision": {"enum":["PASS","FAIL","BLOCKED","UNKNOWN"]}
+  },
+  "additionalProperties": true
+}
